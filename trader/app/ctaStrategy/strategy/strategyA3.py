@@ -7,7 +7,7 @@ import numpy as np
 
 from vnpy.trader.vtConstant import EMPTY_STRING, EMPTY_FLOAT
 from vnpy.trader.app.ctaStrategy.ctaTemplate import (CtaTemplate)
-                                                     
+from vnpy.trader.vtObject import VtTickData, VtBarData
                                                      
 
 
@@ -26,6 +26,8 @@ class A3Strategy(CtaTemplate):
     # 策略变量
     bar = None
     barMinute = EMPTY_STRING
+    
+    hourBar = None
 
     closeHistory = []       # 缓存K线收盘价的数组
     maxHistory = 50         # 最大缓存数量
@@ -58,6 +60,10 @@ class A3Strategy(CtaTemplate):
     def __init__(self, ctaEngine, setting):
         """Constructor"""
         super(A3Strategy, self).__init__(ctaEngine, setting)
+        
+        self.index = 1
+        self.entryPrice = 0
+        self.initLoss = 1
 
     # ----------------------------------------------------------------------
     def onInit(self):
@@ -92,7 +98,7 @@ class A3Strategy(CtaTemplate):
             if self.bar:
                 self.onBar(self.bar)
 
-            bar = CtaBarData()
+            bar = VtBarData()
             bar.vtSymbol = tick.vtSymbol
             bar.symbol = tick.symbol
             bar.exchange = tick.exchange
@@ -125,6 +131,49 @@ class A3Strategy(CtaTemplate):
         """收到Bar推送（必须由用户继承实现）"""
         # 把最新的收盘价缓存到列表中
         self.closeHistory.append(bar.close)
+        
+        #print(bar.date,type(bar.date))#unicode 
+        #print(bar.time,type(bar.time))#unicode
+        #print(bar.datetime.hour,type(bar.datetime.hour))#int  #上午9点没有9:0  有10:0
+        
+        #barMonth = bar.datetime.month
+        #barDay = bar.datetime.day
+        #barHour = bar.datetime.hour
+        #barMinute = bar.datetime.minute
+        
+        
+        #if barMonth == 9 and barDay == 29:
+            #print('index:%s %s'%(self.index,bar.datetime))
+            #self.index +=1
+            
+        
+        #if barHour == 9 and barMinute == 1:
+            #print('0:%s' %(bar.datetime))
+            
+            #hourBar = VtBarData()
+            #hourBar.vtSymbol = bar.vtSymbol
+            #hourBar.symbol = bar.symbol
+            #hourBar.exchange = bar.exchange    
+            
+            #hourBar.open = bar.open
+            #hourBar.high = bar.high
+            #hourBar.low = bar.low
+            #hourBar.close = bar.close
+            
+            #hourBar.date = bar.date
+            #hourBar.time = bar.time
+            #hourBar.datetime = bar.datetime
+            
+            #self.hourBar = hourBar
+            
+        #elif barHour == 10 and barMinute == 0:
+            #print('1:%s' %(bar.datetime))
+        #elif barHour == 11 and barMinute == 15:
+            #print('2:%s'%bar.datetime)
+        #elif barHour == 14 and barMinute == 15:
+            #print('3:%s'%bar.datetime)
+        #elif barHour == 15 and barMinute == 0:
+            #print('4:%s'%bar.datetime)
 
         # 检查列表长度，如果超过缓存上限则移除最老的数据
         # 这样是为了减少计算用的数据量，提高速度
@@ -145,6 +194,8 @@ class A3Strategy(CtaTemplate):
         self.slowMa0 = slowSMA[-1]
         self.slowMa1 = slowSMA[-2]
 
+
+                
         # 判断买卖
         crossOver = self.fastMa0>self.slowMa0 and self.fastMa1<self.slowMa1     # 金叉上穿
         crossBelow = self.fastMa0<self.slowMa0 and self.fastMa1>self.slowMa1    # 死叉下穿
@@ -154,6 +205,7 @@ class A3Strategy(CtaTemplate):
             # 如果金叉时手头没有持仓，则直接做多
             if self.pos == 0:
                 self.buy(bar.close, 1)
+                self.entryPrice = bar.close
             # 如果有空头持仓，则先平空，再做多
             elif self.pos < 0:
                 self.cover(bar.close, 1)
@@ -162,10 +214,22 @@ class A3Strategy(CtaTemplate):
         elif crossBelow:
             if self.pos == 0:
                 self.short(bar.close, 1)
+                self.entryPrice = bar.close
             elif self.pos > 0:
                 self.sell(bar.close, 1)
                 self.short(bar.close, 1)
+        
 
+        # 止损
+        if self.pos > 0:
+            stopRatio = (1-self.initLoss*0.01)
+            if bar.close <= self.entryPrice * stopRatio:
+                self.sell(bar.close, 1)
+        if self.pos < 0:
+            stopRatio = 1 + self.initLoss * 0.01
+            if bar.close >= self.entryPrice * stopRatio:
+                self.cover(bar.close, 1)     
+        
         # 发出状态更新事件
         self.putEvent()
 
@@ -189,7 +253,7 @@ def runBacktesting():
     # 设置引擎的回测模式为K线
     engine.setBacktestingMode(engine.BAR_MODE)
 
-    bd = {'start':'20110801','capital':10000,'slippage':1,'rate':1.0/10000,'size':10,'priceTick':1,'symbol':'rb0000','stratName':'A3Strategy'}
+    bd = {'start':'20170801','capital':10000,'slippage':1,'rate':1.0/10000,'size':10,'priceTick':1,'symbol':'rb0000','stratName':'A3Strategy'}
     #bd = {'start':'20150327','capital':200000,'slippage':1,'rate':1.0/10000,'size':1,'priceTick':1,'symbol':'ni0000','stratName':'A3Strategy'}
     #bd = {'start':'20140228','capital':200000,'slippage':1,'rate':1.0/10000,'size':5,'priceTick':1,'symbol':'pp0000','stratName':'A3Strategy'}
     #bd = {'start':'20080624','capital':200000,'slippage':1,'rate':1.0/10000,'size':5,'priceTick':5,'symbol':'l0000','stratName':'A3Strategy'}
@@ -219,6 +283,7 @@ def runBacktesting():
     #engine.showBacktestingResult()
     #engine.showDailyResult()
     engine.saveDailyResult()
+    engine.saveBacktestingResult()
     
 def runOptimization():
     from vnpy.trader.app.ctaStrategy.ctaBacktesting import BacktestingEngine, MINUTE_DB_NAME, OptimizationSetting
@@ -229,7 +294,7 @@ def runOptimization():
     # 设置引擎的回测模式为K线
     engine.setBacktestingMode(engine.BAR_MODE)
     
-    bd = {'start':'20110801','capital':10000,'slippage':1,'rate':1.0/10000,'size':10,'priceTick':1,'symbol':'rb0000','stratName':'A3Strategy'}
+    bd = {'start':'20170801','capital':10000,'slippage':1,'rate':1.0/10000,'size':10,'priceTick':1,'symbol':'rb0000','stratName':'A3Strategy'}
     # 设置回测用的数据起始日期
     engine.setStartDate(bd['start'])
     

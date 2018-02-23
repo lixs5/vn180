@@ -251,7 +251,7 @@ def runOptimization():
     
     #setting.addParameter('stop_loss', 10, 100, 5)    # 增加第一个优化参数atrLength，起始12，结束20，步进2
     setting.addParameter('fastPeriod', 5, 30, 5)  
-    setting.addParameter('slowPeriod', 20, 60, 5)  
+    setting.addParameter('slowPeriod', 60)  
     
 
     # 性能测试环境：I7-3770，主频3.4G, 8核心，内存16G，Windows 7 专业版
@@ -270,5 +270,5 @@ def runOptimization():
     print u'耗时：%s' %(time.time()-start)   
     
 if __name__ == '__main__':
-    #runBacktesting()
-    runOptimization()
+    runBacktesting()
+    #runOptimization()

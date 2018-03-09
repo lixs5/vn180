@@ -270,6 +270,7 @@ def runBacktesting():
     # 设置使用的历史数据库
     engine.setDatabase(MINUTE_DB_NAME, bd['symbol'])
     engine.stratName = bd['stratName']
+    engine.symbolName = bd['symbol']
     engine.symbol = bd['symbol']
     
     # 在引擎中创建策略对象

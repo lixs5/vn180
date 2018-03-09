@@ -1,11 +1,5 @@
 [
     {
-        "name": "double ema",
-        "className": "EmaDemoStrategy",
-        "vtSymbol": "rb1805"
-    },
-
-    {
         "name": "atr rsi",
         "className": "AtrRsiStrategy",
         "vtSymbol": "hc1805"
